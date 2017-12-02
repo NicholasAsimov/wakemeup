@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/faiface/beep"
@@ -59,12 +60,29 @@ func playMP3(r io.ReadCloser) error {
 	return nil
 }
 
-func main() {
-	var userTime string
-	var filename string
+func suspend(until time.Time) error {
+	rtcwakeCmd := fmt.Sprintf("sudo rtcwake --mode mem --time %d", until.Unix())
+	cmd := exec.Command("/bin/sh", "-c", rtcwakeCmd)
 
+	fmt.Printf("about to suspend computer!\ncommand: %s\n", rtcwakeCmd)
+	_, err := cmd.Output()
+
+	if err != nil {
+		return fmt.Errorf("%s", err.(*exec.ExitError).Stderr)
+	}
+
+	return nil
+}
+
+func main() {
+	var (
+		userTime string
+		filename string
+		sleep    bool
+	)
 	flag.StringVar(&userTime, "when", "", "when to ring the alarm -- required")
 	flag.StringVar(&filename, "file", "", "mp3 file to play -- required")
+	flag.BoolVar(&sleep, "sleep", false, "suspend computer until 1 minute before the alarm (linux only)")
 	flag.Parse()
 
 	if userTime == "" {
@@ -86,6 +104,12 @@ func main() {
 	alarmTime = bestTime(now, alarmTime)
 	diff := alarmTime.Sub(now)
 	fmt.Printf("now: %s,\nalarmTime: %s,\ndiff: %s\n\n", now, alarmTime, diff)
+
+	if sleep {
+		if err := suspend(alarmTime.Add(-time.Minute)); err != nil {
+			log.Fatalf("can't suspend: %s", err)
+		}
+	}
 
 	timer := time.NewTimer(diff)
 	// Reset the timer every n seconds to make sure the
