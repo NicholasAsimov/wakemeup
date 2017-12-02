@@ -85,12 +85,7 @@ func main() {
 	flag.BoolVar(&sleep, "sleep", false, "suspend computer until 1 minute before the alarm (linux only)")
 	flag.Parse()
 
-	if userTime == "" {
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-
-	if filename == "" {
+	if userTime == "" || filename == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
