@@ -77,28 +77,43 @@ func main() {
 		os.Exit(1)
 	}
 
-	now := time.Now().Local()
-
 	alarmTime, err := time.Parse("15:04", userTime)
 	if err != nil {
 		log.Fatalf("can't parse time: %s.\nMake sure time is in hh:mm format.", err)
 	}
 
-	later := bestTime(now, alarmTime)
-	diff := later.Sub(now)
-	fmt.Printf("now: %s,\nlater: %s,\ndiff: %s\n\n", now, later, diff)
+	now := time.Now()
+	alarmTime = bestTime(now, alarmTime)
+	diff := alarmTime.Sub(now)
+	fmt.Printf("now: %s,\nalarmTime: %s,\ndiff: %s\n\n", now, alarmTime, diff)
+
+	timer := time.NewTimer(diff)
+	// Reset the timer every n seconds to make sure the
+	// alarm rings on time in case of timer freeze e.g.
+	// system suspend
+	ticker := time.NewTicker(time.Second * 30)
 
 	fmt.Printf("sleeping for %s\n", diff)
-	time.Sleep(diff)
-	fmt.Println("woke up, playing")
+	for {
+		select {
+		case <-ticker.C:
+			diff := time.Until(alarmTime)
+			fmt.Printf("new diff %s\n", diff)
+			timer.Reset(diff)
+		case <-timer.C:
+			fmt.Println("woke up, playing")
+			// resp, err := http.Get("https://www.npr.org/streams/mp3/nprlive24.m3u")
+			f, err := os.Open(filename)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-	// resp, err := http.Get("https://www.npr.org/streams/mp3/nprlive24.m3u")
-	f, err := os.Open(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
+			if err := playMP3(f); err != nil {
+				log.Fatal(err)
+			}
 
-	if err := playMP3(f); err != nil {
-		log.Fatal(err)
+			return
+		}
+
 	}
 }
