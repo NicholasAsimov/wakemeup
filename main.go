@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/NicholasAsimov/wakemeup/icy"
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
@@ -78,14 +79,25 @@ func main() {
 	var (
 		userTime string
 		filename string
+		url      string
 		sleep    bool
 	)
+
+	// TODO add -audioDevice command that changes alsa device before
+	// playing the music and then changes it back
 	flag.StringVar(&userTime, "when", "", "when to ring the alarm -- required")
-	flag.StringVar(&filename, "file", "", "mp3 file to play -- required")
+	flag.StringVar(&filename, "file", "", "mp3 file to play")
+	flag.StringVar(&url, "url", "", "mp3 url to play")
 	flag.BoolVar(&sleep, "sleep", false, "suspend computer until 1 minute before the alarm (linux only)")
 	flag.Parse()
 
-	if userTime == "" || filename == "" {
+	if userTime == "" || (filename == "" && url == "") {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if filename != "" && url != "" {
+		fmt.Println("You can only specify either file or url")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -121,18 +133,32 @@ func main() {
 			timer.Reset(diff)
 		case <-timer.C:
 			fmt.Println("woke up, playing")
-			// resp, err := http.Get("https://www.npr.org/streams/mp3/nprlive24.m3u")
-			f, err := os.Open(filename)
-			if err != nil {
-				log.Fatal(err)
+
+			var r io.ReadCloser
+
+			if url != "" {
+				resp, err := icy.Get(url)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				r = resp.Body
+			} else if filename != "" {
+				f, err := os.Open(filename)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				r = f
 			}
 
-			if err := playMP3(f); err != nil {
+			defer r.Close()
+
+			if err := playMP3(r); err != nil {
 				log.Fatal(err)
 			}
 
 			return
 		}
-
 	}
 }
